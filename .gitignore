@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.env
+.venv/
+config/friends.txt
+.pytest_cache/
+node_modules/
+.wrangler/
+*.log
+state/

@@ -1,0 +1,57 @@
+name: 每日名片赞（每人 10 个）
+
+# ⚠️ GitHub Actions 的 cron 用的是 UTC 时间。
+#    北京时间 10:00  =  UTC 02:00
+#    北京时间 10:00 对应 UTC+8，中国没有夏令时，全年固定。
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      times:
+        description: "每位好友点赞次数"
+        required: false
+        default: "10"
+      dry_run:
+        description: "仅演练不真的点赞（1=开启）"
+        required: false
+        default: "0"
+
+# 同一时间只跑一份，避免重叠执行
+concurrency:
+  group: qq-card-like
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  card-like:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: 安装依赖
+        run: pip install -r requirements.txt
+
+      - name: 执行名片赞任务
+        env:
+          QQ_UIN: ${{ secrets.QQ_UIN }}
+          QQ_COOKIE: ${{ secrets.QQ_COOKIE }}
+          QQ_FRIENDS: ${{ vars.QQ_FRIENDS }}
+          QQ_DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
+        run: |
+          TIMES="${{ github.event.inputs.times || '10' }}"
+          echo "开始时间: $(TZ=Asia/Shanghai date '+%F %T %Z')"
+          python main.py card-like --times "$TIMES" --max-friends 50
+
+      - name: 失败时提示
+        if: failure()
+        run: |
+          echo "::error::名片赞任务失败，通常是 Cookie 过期。请重新抓取 Cookie 并更新 Secret QQ_COOKIE。"

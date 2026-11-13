@@ -1,0 +1,38 @@
+name: 空间动态秒赞（每 5 分钟）
+
+# GitHub Actions 的最小调度间隔就是 5 分钟，且高峰期会有 3~15 分钟延迟。
+# 想要"发出来 1 分钟内就赞"，请改用 worker/ 目录里的 Cloudflare Worker 版本（每分钟）。
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: qq-feed-like
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  feed-like:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: 安装依赖
+        run: pip install -r requirements.txt
+
+      - name: 扫描并点赞新动态
+        env:
+          QQ_UIN: ${{ secrets.QQ_UIN }}
+          QQ_COOKIE: ${{ secrets.QQ_COOKIE }}
+        run: |
+          # 只赞最近 120 分钟内、自己还没赞过的动态，避免首次运行刷历史
+          python main.py feed-like --num 20 --since 120 --max-like 10

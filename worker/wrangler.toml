@@ -1,0 +1,15 @@
+name = "qq-feed-liker"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# 每分钟扫一次，这就是"实时"的来源
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+SINCE_MINUTES = "120"
+
+# 密钥用命令行注入，不要写在这里：
+#   wrangler secret put QQ_UIN
+#   wrangler secret put QQ_COOKIE
+#   wrangler secret put TRIGGER_TOKEN
