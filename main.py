@@ -20,6 +20,7 @@ from pathlib import Path
 from qqliker.client import QzoneClient, QzoneError
 from qqliker.config import Settings
 from qqliker.snapshot import build_snapshot, write_snapshot
+from qqliker.runs import load_runs, record_run
 from qqliker.tasks import TaskReport, run_card_like, run_feed_like
 
 ROOT = Path(__file__).resolve().parent
@@ -122,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.task == "sync":
             snap = build_snapshot(client)
-            snap["runs"] = fetch_recent_runs()
+            snap["runs"] = load_runs()
             out = Path(os.environ.get("QQ_SNAPSHOT", "data/snapshot.json"))
             write_snapshot(snap, out)
             print(f"快照完成: 好友 {len(snap['friends'])} / 动态 {len(snap['feeds'])} / 赞 {len(snap['likes'])}")
@@ -142,44 +143,26 @@ def main(argv: list[str] | None = None) -> int:
             )
     except QzoneError as exc:
         log_error(str(exc))
+        try:
+            record_run("名片赞" if args.task in {"card-like", "all"} else "动态秒赞", failed=1, conclusion="failure", note=str(exc)[:120])
+        except Exception:
+            pass
         return 2
 
     print()
+    labels = {"名片赞": "每日名片赞", "空间动态点赞": "动态秒赞"}
     for r in reports:
         print(r.render())
         print()
+        record_run(
+            labels.get(r.name, r.name),
+            ok=r.ok,
+            failed=r.failed,
+            skipped=r.skipped,
+            note="dry-run" if dry_run else "",
+        )
     write_step_summary(reports)
     return 0
-
-
-def fetch_recent_runs(limit: int = 10) -> list[dict]:
-    """把最近执行记录写进快照，前端就不必直接调 GitHub API（会被限流）。"""
-    token = os.environ.get("GITHUB_TOKEN")
-    repo = os.environ.get("GITHUB_REPOSITORY")
-    if not token or not repo:
-        return []
-    try:
-        import requests
-
-        r = requests.get(
-            f"https://api.github.com/repos/{repo}/actions/runs?per_page={limit}",
-            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
-            timeout=20,
-        )
-        if not r.ok:
-            return []
-        return [
-            {
-                "name": x.get("name"),
-                "status": x.get("status"),
-                "conclusion": x.get("conclusion"),
-                "created_at": x.get("created_at"),
-            }
-            for x in (r.json().get("workflow_runs") or [])
-            if any(k in (x.get("name") or "") for k in ("名片赞", "动态秒赞"))
-        ]
-    except Exception:
-        return []
 
 
 def log_error(msg: str) -> None:
