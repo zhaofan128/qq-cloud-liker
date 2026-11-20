@@ -113,6 +113,26 @@ main{padding:10px 16px 24px}
 .tabbar .tab.on{color:var(--qq2);background:rgba(18,183,245,.09)}
 .tabbar svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
+.row{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.row:last-of-type{border-bottom:none}
+.row .lb{flex:1;min-width:0}
+.row .lb .k{font-size:12.5px;font-weight:600;color:var(--text)}
+.row .lb .note{margin-top:2px}
+.row input[type=time],.row input[type=number]{
+  background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;
+  color:var(--text);font-size:15px;font-family:inherit;outline:none;width:auto;min-width:96px;text-align:center}
+.row input[type=number]{min-width:64px;width:64px}
+.row input:focus{border-color:rgba(18,183,245,.55)}
+.install{display:none;align-items:center;gap:11px;margin:0 16px 6px;padding:12px 14px;border-radius:13px;
+  background:linear-gradient(120deg,rgba(18,183,245,.16),rgba(18,183,245,.04));border:1px solid rgba(18,183,245,.3)}
+.install.show{display:flex}
+.install .tx{flex:1;min-width:0}
+.install .tx b{display:block;font-size:13px}
+.install .tx span{font-size:11.5px;color:var(--muted)}
+.install button{background:var(--qq);border:none;color:#03131c;font-weight:700;font-size:12.5px;
+  padding:8px 14px;border-radius:9px;font-family:inherit}
+.install .x{background:none;border:none;color:var(--muted);font-size:17px;padding:0 2px}
+
 .toast{position:fixed;left:50%;bottom:96px;transform:translate(-50%,12px);background:#16202f;border:1px solid var(--line);
   color:var(--text);font-size:12.5px;padding:10px 16px;border-radius:11px;opacity:0;pointer-events:none;transition:.25s;z-index:50}
 .toast.show{opacity:1;transform:translate(-50%,0)}
@@ -126,6 +146,12 @@ main{padding:10px 16px 24px}
     <div class="htxt"><b>Q赞</b><span id="acct">加载中…</span></div>
     <div class="pill" id="status"><i></i>检测中</div>
   </header>
+
+  <div class="install" id="installBar">
+    <div class="tx"><b>安装到手机桌面</b><span>像 App 一样全屏打开，无需下载安装包</span></div>
+    <button id="installBtn">安装</button>
+    <button class="x" id="installX">×</button>
+  </div>
 
   <main>
     <section class="view active" id="v-home">
@@ -178,19 +204,39 @@ main{padding:10px 16px 24px}
     </section>
 
     <section class="view" id="v-set">
-      <div class="sect"><h2>GitHub Token</h2></div>
+      <div class="sect"><h2>自动任务</h2><span class="cnt" id="schState">每天</span></div>
       <div class="card">
-        <p class="hint" style="margin-top:0">填入后可在这里改好友开关、手动触发任务。Token 只存在本机浏览器，不会上传到任何地方。</p>
-        <div class="search" style="margin:10px 0 0">
-          <input id="tok" type="password" placeholder="ghp_… 或 github_pat_…">
-          <button class="btn" id="saveTok">保存</button>
+        <div class="row">
+          <div class="lb"><div class="k">名片赞时间</div><div class="note">云端每天按这个时间执行</div></div>
+          <input type="time" id="schTime" value="10:00" step="300">
         </div>
+        <div class="row">
+          <div class="lb"><div class="k">每位好友次数</div><div class="note">建议 10，过多易触发风控</div></div>
+          <input type="number" id="schTimes" value="10" min="1" max="20">
+        </div>
+        <div class="row">
+          <div class="lb"><div class="k">动态秒赞</div><div class="note">每 5 分钟扫描一次好友动态</div></div>
+          <div style="font-size:12.5px;color:var(--muted)">固定</div>
+        </div>
+        <button class="btn" id="saveSch" style="width:100%;margin-top:14px">保存并同步到云端</button>
+        <p class="hint" style="margin:10px 0 0">保存会改写仓库里的定时配置，云端下一轮生效。需要先填下面的 Token。GitHub 的定时任务在整点高峰可能延迟 3~15 分钟，属正常现象。</p>
       </div>
+
       <div class="sect"><h2>手动执行</h2></div>
       <div class="grid2">
         <button class="btn" id="runCard">立即点赞</button>
         <button class="btn" id="runFeed">扫描动态</button>
       </div>
+
+      <div class="sect"><h2>GitHub Token</h2></div>
+      <div class="card">
+        <p class="hint" style="margin-top:0">填入后可改好友开关、改定时时间、手动触发任务。Token 只存在本机浏览器，不会上传到任何地方。</p>
+        <div class="search" style="margin:10px 0 0">
+          <input id="tok" type="password" placeholder="ghp_… 或 github_pat_…">
+          <button class="btn" id="saveTok">保存</button>
+        </div>
+      </div>
+
       <div class="sect"><h2>仓库</h2></div>
       <div class="card">
         <div class="k">Repository</div>
