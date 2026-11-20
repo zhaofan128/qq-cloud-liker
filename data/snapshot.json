@@ -1,5 +1,5 @@
 {
- "updated_at": 1795179984,
+ "updated_at": 1795180316,
  "account": {
   "uin": "2770703224",
   "name": "余念安 余念向来难安"
@@ -298,13 +298,13 @@
  "errors": [],
  "runs": [
   {
-   "name": "动态秒赞",
+   "name": "每日名片赞",
    "status": "completed",
    "conclusion": "success",
-   "created_at": "2026-11-20T21:04:56+08:00",
-   "ok": 3,
+   "created_at": "2026-11-20T20:55:10+08:00",
+   "ok": 56,
    "failed": 0,
-   "skipped": 0,
+   "skipped": 5,
    "note": ""
   },
   {
