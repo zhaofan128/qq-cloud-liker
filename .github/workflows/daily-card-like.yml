@@ -47,9 +47,13 @@ jobs:
           QQ_FRIENDS: ${{ vars.QQ_FRIENDS }}
           QQ_DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
         run: |
-          TIMES="${{ github.event.inputs.times || '10' }}"
           echo "开始时间: $(TZ=Asia/Shanghai date '+%F %T %Z')"
-          python main.py card-like --times "$TIMES" --max-friends 0
+          if [ -n "${{ github.event.inputs.times }}" ]; then
+            python main.py card-like --times "${{ github.event.inputs.times }}" --max-friends 0
+          else
+            # 不传 --times 时读取 config/control.json（App 里改的次数）
+            python main.py card-like --max-friends 0
+          fi
 
       - name: 失败时提示
         if: failure()
