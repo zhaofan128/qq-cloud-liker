@@ -44,7 +44,7 @@ GitHub 账号满 180 天会送每月 5 美元额度，够跑这一台容器，�
 
 > 二维码 2 分钟过期。过期就在应用详情里点 **Restart**，日志会刷新出新二维码。
 
-### 4. 装点赞脚本（一条命令）
+### 4. 装点赞脚本
 
 应用详情 → **Terminal**，粘贴回车：
 
@@ -52,11 +52,20 @@ GitHub 账号满 180 天会送每月 5 美元额度，够跑这一台容器，�
 curl -fsSL https://raw.githubusercontent.com/zhaofan128/qq-cloud-liker/main/deploy/setup.sh | bash
 ```
 
-看到 `daily liker started` 就成了。它会：
+它会写好接口配置、放好点赞脚本。第一次跑会提示**需要重启一次**：
 
-- 打开 OneBot HTTP 接口（容器内 `127.0.0.1:3000`）
-- 放好 `/app/dailylike.py` 并挂到后台
-- 每天 10:00（北京时间）给全部好友各点 10 个赞
+1. 回应用详情点 **Restart**
+2. 重启完再进 Terminal，**再执行一次同一条命令**
+
+第二次会打印 `daily liker started`，说明后台常驻已经起来，每天 10:00
+（北京时间）给全部好友各点 10 个赞。
+
+> 如果 Create App 的表单里有 **Command / 启动命令** 字段，直接填下面这行，
+> 就能跳过上面两次执行，部署完即生效：
+>
+> ```bash
+> bash -c "curl -fsSL https://raw.githubusercontent.com/zhaofan128/qq-cloud-liker/main/deploy/boot.sh -o /tmp/b.sh && bash /tmp/b.sh"
+> ```
 
 ### 5. 立刻验证一次
 

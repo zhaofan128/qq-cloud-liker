@@ -6,9 +6,11 @@ SRC="${SRC:-https://raw.githubusercontent.com/zhaofan128/qq-cloud-liker/main/dep
 
 mkdir -p /app/napcat/config
 
+need_restart=0
 if [ ! -f /app/napcat/config/onebot11.json ]; then
-    curl -fsSL "$SRC/onebot11.json" -o /app/napcat/config/onebot11.json
-    echo "已写入 OneBot 配置（需要重启一次容器才生效）"
+    if curl -fsSL "$SRC/onebot11.json" -o /app/napcat/config/onebot11.json; then
+        need_restart=1
+    fi
 fi
 
 curl -fsSL "$SRC/dailylike.py" -o /app/dailylike.py
@@ -16,9 +18,16 @@ curl -fsSL "$SRC/dailylike.py" -o /app/dailylike.py
 pkill -f "python3 /app/dailylike.py" 2>/dev/null
 sleep 1
 nohup python3 /app/dailylike.py >> /app/like.log 2>&1 &
+sleep 1
 
 echo ""
-echo "daily liker started"
-echo "- 每天 ${LIKE_AT:-10:00} 自动给全部好友点 ${LIKE_TIMES:-10} 个名片赞"
-echo "- 立刻试一次：python3 /app/dailylike.py --once"
-echo "- 看日志：tail -f /app/like.log"
+if [ "$need_restart" = "1" ]; then
+    echo "① 接口配置已写入。请回应用详情点 Restart。"
+    echo "② 重启完再执行一次这条命令，点赞就生效了："
+    echo "   curl -fsSL ${SRC}/setup.sh | bash"
+else
+    echo "daily liker started"
+    echo "每天 ${LIKE_AT:-10:00} 给全部好友点 ${LIKE_TIMES:-10} 个名片赞"
+    echo "立刻试一次：python3 /app/dailylike.py --once"
+    echo "看日志：tail -f /app/like.log"
+fi
