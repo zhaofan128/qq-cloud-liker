@@ -1,5 +1,5 @@
 {
- "updated_at": 1795175539,
+ "updated_at": 1795175709,
  "account": {
   "uin": "2770703224",
   "name": "余念安 余念向来难安"
@@ -253,7 +253,18 @@
  "feeds": [],
  "likes": [],
  "errors": [],
- "runs": [],
+ "runs": [
+  {
+   "name": "每日名片赞",
+   "status": "completed",
+   "conclusion": "success",
+   "created_at": "2026-11-20T19:30:27+08:00",
+   "ok": 61,
+   "failed": 0,
+   "skipped": 0,
+   "note": "首轮全量 610 次"
+  }
+ ],
  "config": {
   "enabled": [
    "228894789",
