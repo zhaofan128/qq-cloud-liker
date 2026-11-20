@@ -122,6 +122,7 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.task == "sync":
             snap = build_snapshot(client)
+            snap["runs"] = fetch_recent_runs()
             out = Path(os.environ.get("QQ_SNAPSHOT", "data/snapshot.json"))
             write_snapshot(snap, out)
             print(f"快照完成: 好友 {len(snap['friends'])} / 动态 {len(snap['feeds'])} / 赞 {len(snap['likes'])}")
@@ -149,6 +150,36 @@ def main(argv: list[str] | None = None) -> int:
         print()
     write_step_summary(reports)
     return 0
+
+
+def fetch_recent_runs(limit: int = 10) -> list[dict]:
+    """把最近执行记录写进快照，前端就不必直接调 GitHub API（会被限流）。"""
+    token = os.environ.get("GITHUB_TOKEN")
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    if not token or not repo:
+        return []
+    try:
+        import requests
+
+        r = requests.get(
+            f"https://api.github.com/repos/{repo}/actions/runs?per_page={limit}",
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"},
+            timeout=20,
+        )
+        if not r.ok:
+            return []
+        return [
+            {
+                "name": x.get("name"),
+                "status": x.get("status"),
+                "conclusion": x.get("conclusion"),
+                "created_at": x.get("created_at"),
+            }
+            for x in (r.json().get("workflow_runs") or [])
+            if any(k in (x.get("name") or "") for k in ("名片赞", "动态秒赞"))
+        ]
+    except Exception:
+        return []
 
 
 def log_error(msg: str) -> None:
