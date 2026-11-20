@@ -16,15 +16,21 @@ jobs:
 
       - name: 启动协议端容器
         run: |
-          for REG in mirror.gcr.io docker.1ms.run docker.m.daocloud.io docker.io; do
-            echo "== 尝试 $REG"
-            if docker pull "$REG/mlikiowa/napcat-docker:latest"; then
-              docker tag "$REG/mlikiowa/napcat-docker:latest" mlikiowa/napcat-docker:latest
-              echo "IMAGE_OK: $REG"
-              break
-            fi
+          IMG=""
+          for try in 1 2 3 4 5; do
+            for REG in mirror.gcr.io docker.1ms.run docker.m.daocloud.io docker.io; do
+              echo "== 第 $try 轮 · $REG"
+              if docker pull "$REG/mlikiowa/napcat-docker:latest"; then
+                IMG="$REG/mlikiowa/napcat-docker:latest"
+                break 2
+              fi
+            done
+            echo "全部失败，等 40 秒再来"
+            sleep 40
           done
-          docker image inspect mlikiowa/napcat-docker:latest >/dev/null || exit 1
+          if [ -z "$IMG" ]; then echo "::error::镜像拉不下来"; exit 1; fi
+          docker tag "$IMG" mlikiowa/napcat-docker:latest
+          echo "IMAGE_OK: $IMG"
           rm -rf qqdata
           mkdir -p qqdata/napcat qqdata/QQ
           docker run -d --name napcat --shm-size=1g --cap-add=SYS_ADMIN \
