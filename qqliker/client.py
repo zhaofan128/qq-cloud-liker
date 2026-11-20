@@ -54,13 +54,24 @@ def calc_gtk(skey: str) -> int:
 
 
 _CALLBACK_RE = re.compile(r"^[\w$.]+\((.*)\)\s*;?\s*$", re.S)
+_HTML_CALLBACK_RE = re.compile(r"callback\(\s*(\{.*\})\s*\)", re.S)
 
 
 def loads_js(text: str) -> Any:
-    """解析 QQ 的 JSONP / JS 字面量响应。"""
+    """解析 QQ 的 JSONP / JS 字面量响应。
+
+    兼容三种形态：
+    1. ``_Callback({...});``
+    2. ``<html>...frameElement.callback({...});</script></html>``（点赞接口）
+    3. 裸 JSON
+    """
     text = (text or "").strip()
     if not text:
         raise QzoneError("空响应")
+    if "<html" in text.lower() or "frameElement" in text:
+        m = _HTML_CALLBACK_RE.search(text)
+        if m:
+            text = m.group(1).strip()
     m = _CALLBACK_RE.match(text)
     if m:
         text = m.group(1).strip()
@@ -270,10 +281,13 @@ class QzoneClient:
         for item in data.get("msglist") or []:
             if not isinstance(item, dict):
                 continue
-            curkey = item.get("curkey") or ""
-            unikey = item.get("unikey") or ""
-            if not curkey:
+            tid = str(item.get("tid") or "")
+            if not tid:
                 continue
+            # 新版接口不再返回 curkey/unikey，用 tid 约定式构造，接口认这个形式
+            key = str(item.get("curkey") or "") or (
+                f"http://user.qzone.qq.com/{self.uin}/mood/{tid}"
+            )
             try:
                 created = int(item.get("created_time") or 0)
             except (TypeError, ValueError):
@@ -284,9 +298,9 @@ class QzoneClient:
                 liked = 0
             feeds.append(
                 {
-                    "tid": str(item.get("tid") or ""),
-                    "curkey": curkey,
-                    "unikey": unikey,
+                    "tid": tid,
+                    "curkey": key,
+                    "unikey": key,
                     "nick": str(item.get("name") or ""),
                     "content": str(item.get("content") or "")[:60],
                     "created_time": created,
@@ -313,7 +327,8 @@ class QzoneClient:
         payload = loads_js(resp.text)
         if not isinstance(payload, dict):
             return False
-        if payload.get("code") == 0:
+        # 新旧两种返回：{"ret":0,"msg":"succ"} / {"code":0,...}
+        if payload.get("ret") == 0 or payload.get("code") == 0:
             return True
         # 已经赞过的情况直接算成功，避免重复请求被记成失败
         blob = json.dumps(payload, ensure_ascii=False)
