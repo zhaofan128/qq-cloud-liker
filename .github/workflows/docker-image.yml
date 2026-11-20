@@ -16,14 +16,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: ./deploy
-          push: true
-          tags: ghcr.io/${{ github.repository }}:napcat
+      - name: Build and push
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker build -t ghcr.io/${{ github.repository }}:napcat ./deploy
+          docker push ghcr.io/${{ github.repository }}:napcat
