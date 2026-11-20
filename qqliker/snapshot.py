@@ -37,60 +37,44 @@ def fetch_friends(client: QzoneClient) -> list[dict[str, str]]:
     return out
 
 
-def fetch_friend_feeds(client: QzoneClient, num: int = 20) -> list[dict[str, Any]]:
-    """好友动态。接口对参数敏感，拿不到就返回空列表，不影响其他数据。"""
-    params = {
-        "uin": client.uin,
-        "scope": 0,
-        "view": 1,
-        "daylist": "",
-        "uinlist": "",
-        "gid": "",
-        "flag": 1,
-        "filter": 1,
-        "applist": "",
-        "refresh": 0,
-        "style": 1,
-        "fupdate": 1,
-        "pagenum": 1,
-        "num": num,
-        "g_tk": client.gtk,
-        "callback": "_Callback",
-        "format": "jsonp",
-    }
-    try:
-        resp = client.s.get(
-            FEEDS_API, params=params, timeout=client.timeout, cookies=client.cookies
-        )
-        data = loads_js(resp.text)
-    except Exception as exc:
-        log.warning("好友动态拉取失败: %s", exc)
-        return []
+def fetch_friend_feeds(
+    client: QzoneClient,
+    friends: list[dict[str, Any]] | None = None,
+    per: int = 2,
+    days: int = 3,
+    limit: int = 40,
+) -> list[dict[str, Any]]:
+    """好友动态：逐个好友取最新几条说说。
 
-    main = ((data or {}).get("data") or {}).get("main") or {}
-    raw = main.get("feeds") or []
+    之前用的 ``feeds3_html_more`` 常常返回空（data:[undefined]），
+    所以这里改成走好友说说列表，稳定且顺带拿到 tid、方便点赞。
+    """
+    cutoff = time.time() - days * 86400
     out: list[dict[str, Any]] = []
-    for f in raw:
-        if not isinstance(f, dict):
+    for item in (friends or [])[:limit]:
+        fuin = str(item.get("uin") if isinstance(item, dict) else item)
+        if not fuin.isdigit():
             continue
-        body = f.get("content") or f.get("html") or ""
-        if isinstance(body, str):
-            import re
-
-            body = re.sub(r"<[^>]+>", "", body).strip()
         try:
-            ts = int(f.get("abstime") or f.get("time") or 0)
-        except (TypeError, ValueError):
-            ts = 0
-        out.append(
-            {
-                "nick": str(f.get("nickname") or f.get("name") or ""),
-                "content": str(body)[:120],
-                "time": ts,
-                "uin": str(f.get("uin") or ""),
-            }
-        )
-    return out
+            feeds = client.list_feeds(num=per, uin=fuin)
+        except Exception:
+            continue
+        name = str(item.get("name") or "") if isinstance(item, dict) else ""
+        for f in feeds:
+            if int(f.get("created_time") or 0) < cutoff:
+                continue
+            out.append(
+                {
+                    "nick": f.get("nick") or name,
+                    "content": f.get("content", ""),
+                    "time": int(f.get("created_time") or 0),
+                    "uin": fuin,
+                    "tid": f.get("tid", ""),
+                }
+            )
+        time.sleep(0.12)
+    out.sort(key=lambda i: i["time"], reverse=True)
+    return out[:limit]
 
 
 def fetch_like_list(client: QzoneClient, feeds: list[dict[str, Any]], limit: int = 6) -> list[dict]:
@@ -162,7 +146,7 @@ def build_snapshot(client: QzoneClient, friends: list[dict] | None = None) -> di
         snap["errors"].append(f"我的动态失败: {exc}")
         my_feeds = []
 
-    snap["feeds"] = fetch_friend_feeds(client)
+    snap["feeds"] = fetch_friend_feeds(client, friends)
     try:
         snap["likes"] = fetch_like_list(client, my_feeds)
     except Exception as exc:

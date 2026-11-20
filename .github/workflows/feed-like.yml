@@ -34,5 +34,5 @@ jobs:
           QQ_UIN: ${{ secrets.QQ_UIN }}
           QQ_COOKIE: ${{ secrets.QQ_COOKIE }}
         run: |
-          # 只赞最近 120 分钟内、自己还没赞过的动态，避免首次运行刷历史
-          python main.py feed-like --num 20 --since 120 --max-like 10
+          # 逐个好友扫最新说说，只赞最近 8 分钟内的（5 分钟一轮，基本不重复）
+          python main.py feed-like --num 2 --since 8 --max-like 20

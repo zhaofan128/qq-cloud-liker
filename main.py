@@ -78,8 +78,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--times", type=int, default=None, help="每位好友点赞次数，默认 10")
     parser.add_argument("--interval", type=float, default=None, help="请求间隔秒数，默认 1.5")
     parser.add_argument("--friends", type=str, default="", help="临时覆盖好友列表，逗号分隔")
-    parser.add_argument("--num", type=int, default=20, help="拉取动态条数")
-    parser.add_argument("--since", type=int, default=120, help="只赞最近 N 分钟内的动态")
+    parser.add_argument("--num", type=int, default=2, help="每位好友拉取几条说说")
+    parser.add_argument("--since", type=int, default=15, help="只赞最近 N 分钟内的说说")
     parser.add_argument("--max-like", type=int, default=10, help="单次最多赞几条动态")
     parser.add_argument("--max-friends", type=int, default=0, help="单次最多处理几个好友，0 表示不限")
     parser.add_argument("--dry-run", action="store_true", help="不联网，仅打印流程")
@@ -135,10 +135,12 @@ def main(argv: list[str] | None = None) -> int:
             reports.append(
                 run_feed_like(
                     client,
+                    settings.friends,
                     num=args.num,
                     since_minutes=args.since,
                     max_like=args.max_like,
                     interval=interval,
+                    max_friends=args.max_friends,
                 )
             )
     except QzoneError as exc:

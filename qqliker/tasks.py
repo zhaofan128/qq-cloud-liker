@@ -84,34 +84,53 @@ def run_card_like(
 
 def run_feed_like(
     client: QzoneClient,
-    num: int = 20,
-    since_minutes: int = 120,
-    max_like: int = 10,
-    interval: float = 2.0,
+    friends: list[str],
+    num: int = 2,
+    since_minutes: int = 15,
+    max_like: int = 20,
+    interval: float = 1.5,
+    max_friends: int = 0,
     now: float | None = None,
 ) -> TaskReport:
-    """给最近 ``since_minutes`` 分钟内、自己还没赞过的动态点赞。"""
+    """扫好友空间的最新说说，给 ``since_minutes`` 分钟内、还没赞过的点个赞。
+
+    之前那版拉的是自己空间的说说（等于白赞），这里改成逐个好友取最新几条。
+    """
     report = TaskReport(name="空间动态点赞")
-    feeds: list[dict[str, Any]] = client.list_feeds(num=num)
-    if not feeds:
-        report.add("没有拉到动态（空间为空或接口变动）")
+    targets = friends[:max_friends] if max_friends else friends
+    if not targets:
+        report.add("未配置好友列表（QQ_FRIENDS 或 config/friends.txt）")
         return report
 
     cutoff = (now or time.time()) - since_minutes * 60
-    pending = [f for f in feeds if not f.get("liked") and int(f.get("created_time") or 0) >= cutoff]
-    report.skipped += len(feeds) - len(pending)
-    log.info("共 %d 条动态，待赞 %d 条", len(feeds), len(pending))
+    pending: list[dict[str, Any]] = []
+    for fuin in targets:
+        try:
+            feeds = client.list_feeds(num=num, uin=fuin)
+        except Exception as exc:
+            log.info("好友 %s 说说拉取失败: %s", fuin, exc)
+            continue
+        for f in feeds:
+            if int(f.get("created_time") or 0) >= cutoff and not f.get("liked"):
+                pending.append(f)
+        time.sleep(0.15)
+
+    log.info("扫了 %d 位好友，%d 分钟内的新说说 %d 条", len(targets), since_minutes, len(pending))
+    if not pending:
+        report.add(f"最近 {since_minutes} 分钟没有新说说")
+        return report
 
     for feed in pending[:max_like]:
+        who = feed.get("nick") or feed.get("uin")
         try:
             if client.like_feed(feed):
                 report.ok += 1
-                report.add(f"{feed.get('nick') or feed.get('tid')}: 已赞")
+                report.add(f"{who}: 已赞 {(feed.get('content') or '')[:12]}")
             else:
                 report.failed += 1
-                report.add(f"{feed.get('tid')}: 点赞失败")
+                report.add(f"{who}/{feed.get('tid')}: 点赞失败")
         except Exception as exc:
             report.failed += 1
-            report.add(f"{feed.get('tid')}: 异常 {exc}")
+            report.add(f"{who}/{feed.get('tid')}: 异常 {exc}")
         time.sleep(interval)
     return report

@@ -187,24 +187,27 @@ def test_run_feed_like_only_recent_and_unliked():
     payload = {
         "code": 0,
         "msglist": [
-            {"tid": "new", "curkey": "TID:new", "unikey": "u1", "created_time": now - 60, "liked": 0, "name": "A"},
-            {"tid": "liked", "curkey": "TID:liked", "unikey": "u2", "created_time": now - 60, "liked": 1, "name": "B"},
-            {"tid": "old", "curkey": "TID:old", "unikey": "u3", "created_time": now - 99999, "liked": 0, "name": "C"},
+            {"tid": "new", "created_time": now - 60, "liked": 0, "name": "A"},
+            {"tid": "liked", "created_time": now - 60, "liked": 1, "name": "B"},
+            {"tid": "old", "created_time": now - 99999, "liked": 0, "name": "C"},
         ],
     }
     session = FakeSession(
         {
             "emotion_cgi_msglist_v6": FakeResp("_Callback(" + json.dumps(payload) + ");"),
-            "internal_dolike_app": FakeResp('{"code":0,"data":{"ret":0}}'),
+            "internal_dolike_app": FakeResp('{"ret":0,"msg":"succ"}'),
         }
     )
     client = make_client(session)
-    report = run_feed_like(client, num=20, since_minutes=120, max_like=10, interval=0, now=now)
+    report = run_feed_like(
+        client, ["12345"], num=3, since_minutes=15, max_like=10, interval=0, now=now
+    )
     assert report.ok == 1
-    assert report.skipped == 2
+    assert report.failed == 0
     like_calls = [c for c in session.calls if "internal_dolike_app" in c[0]]
     assert len(like_calls) == 1
-    assert like_calls[0][1]["data"]["curkey"] == "TID:new"
+    # 关键：unikey 里应该是"好友的"QQ，不是自己
+    assert like_calls[0][1]["data"]["curkey"] == "http://user.qzone.qq.com/12345/mood/new"
 
 
 def test_missing_skey_raises():

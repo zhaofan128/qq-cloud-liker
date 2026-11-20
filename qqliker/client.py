@@ -321,10 +321,14 @@ class QzoneClient:
             time.sleep(interval * (0.75 + random.random() * 0.5))
         return result
 
-    def list_feeds(self, num: int = 20) -> list[dict[str, Any]]:
-        """拉取自己空间的最新动态（含 tid / unikey / curkey / 是否已赞）。"""
+    def list_feeds(self, num: int = 20, uin: str | None = None) -> list[dict[str, Any]]:
+        """拉取某人空间的最新说说（默认自己，传 ``uin`` 就是好友的）。
+
+        返回的每项都带好 ``unikey`` / ``curkey``，可以直接喂给 :meth:`like_feed`。
+        """
+        owner = str(uin or self.uin).strip()
         params = {
-            "uin": self.uin,
+            "uin": owner,
             "ftype": 0,
             "sort": 0,
             "pos": 0,
@@ -348,7 +352,7 @@ class QzoneClient:
                 continue
             # 新版接口不再返回 curkey/unikey，用 tid 约定式构造，接口认这个形式
             key = str(item.get("curkey") or "") or (
-                f"http://user.qzone.qq.com/{self.uin}/mood/{tid}"
+                f"http://user.qzone.qq.com/{owner}/mood/{tid}"
             )
             try:
                 created = int(item.get("created_time") or 0)
@@ -361,6 +365,7 @@ class QzoneClient:
             feeds.append(
                 {
                     "tid": tid,
+                    "uin": owner,
                     "curkey": key,
                     "unikey": key,
                     "nick": str(item.get("name") or ""),
