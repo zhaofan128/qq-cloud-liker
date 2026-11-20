@@ -183,7 +183,7 @@ main{padding:10px 16px 24px}
         <div class="v" id="loginV" style="font-size:16px">检测中</div>
         <div class="note" id="loginNote">Cookie 有效期通常数天到数周，过期需重新扫码</div>
       </div>
-      <p class="hint">数据来自仓库中的 <code>data/snapshot.json</code>，每 30 分钟刷新一次。执行记录直接读取 GitHub Actions。</p>
+      <p class="hint">数据来自仓库中的 <code>data/snapshot.json</code>，每 30 分钟刷新一次；名片赞任务跑完会立即刷新。</p>
     </section>
 
     <section class="view" id="v-friends">
@@ -231,6 +231,12 @@ main{padding:10px 16px 24px}
       <div class="sect"><h2>GitHub Token</h2></div>
       <div class="card">
         <p class="hint" style="margin-top:0">填入后可改好友开关、改定时时间、手动触发任务。Token 只存在本机浏览器，不会上传到任何地方。</p>
+        <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&amp;description=Qzan" target="_blank"
+           style="display:block;text-align:center;margin:12px 0 0;padding:11px;border-radius:11px;
+                  background:rgba(18,183,245,.1);border:1px solid rgba(18,183,245,.32);
+                  color:var(--qq2);font-size:13px;font-weight:600;text-decoration:none">
+          点这里生成 Token（权限已预选）
+        </a>
         <div class="search" style="margin:10px 0 0">
           <input id="tok" type="password" placeholder="ghp_… 或 github_pat_…">
           <button class="btn" id="saveTok">保存</button>
