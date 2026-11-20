@@ -11,7 +11,19 @@
     enabled: new Set(),
     token: localStorage.getItem('qz_token') || '',
     filter: '',
+    schedule: localStorage.getItem('qz_schedule') || '10:00',
+    times: Number(localStorage.getItem('qz_times') || 10),
+    dirty: false,
   };
+
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (!localStorage.getItem('qz_install_hide') && !isStandalone()) {
+      document.getElementById('installBar')?.classList.add('show');
+    }
+  });
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -53,6 +65,27 @@
     const cfg = state.snap.config || {};
     const all = (state.snap.friends || []).map((f) => f.uin);
     state.enabled = new Set(Array.isArray(cfg.enabled) ? cfg.enabled : all);
+    if (!state.dirty) {
+      if (typeof cfg.schedule === 'string' && /^\d{2}:\d{2}$/.test(cfg.schedule)) state.schedule = cfg.schedule;
+      if (cfg.times) state.times = Number(cfg.times);
+    }
+  }
+
+  /* ---- 定时时间与 UTC cron 互转 ---- */
+  function toCron(hhmm) {
+    const [h, m] = String(hhmm).split(':').map(Number);
+    const utcH = ((h - 8) % 24 + 24) % 24; // 北京时间 UTC+8
+    return `${m || 0} ${utcH} * * *`;
+  }
+
+  function fromCron(cron) {
+    const m = String(cron).trim().split(/\s+/);
+    if (m.length < 2) return null;
+    const mm = Number(m[0]);
+    const hh = Number(m[1]);
+    if (Number.isNaN(mm) || Number.isNaN(hh)) return null;
+    const local = ((hh + 8) % 24 + 24) % 24;
+    return `${String(local).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
   }
 
   async function loadRuns() {
@@ -89,7 +122,7 @@
   function renderHome() {
     const friends = state.snap?.friends || [];
     const enabled = friends.filter((f) => state.enabled.has(f.uin)).length;
-    const times = state.snap?.config?.times || 10;
+    const times = state.times || 10;
 
     const today = new Date().toDateString();
     const doneToday = state.runs.some(
@@ -98,7 +131,7 @@
     $('todayNum').innerHTML = `${doneToday ? enabled * times : 0}<small>次</small>`;
     $('todaySub').textContent = doneToday
       ? `今天已完成 · ${enabled} 位好友 × ${times} 个`
-      : `每天 10:00 自动执行 · ${enabled} 位好友 × ${times} 个`;
+      : `每天 ${state.schedule} 自动执行 · ${enabled} 位好友 × ${times} 个`;
     $('fCount').innerHTML = `${enabled}<small>位</small>`;
 
     $('runCnt').textContent = state.runs.length ? `${state.runs.length} 条` : '—';
@@ -163,37 +196,109 @@
     renderHome();
     renderFriends();
     renderFeeds();
+    renderSettings();
   }
 
-  async function saveControl() {
-    if (!state.token) {
-      toast('已保存到本机（未填 Token，不会同步到云端）');
-      return;
-    }
-    const body = {
-      enabled: [...state.enabled],
-      times: state.snap?.config?.times || 10,
-    };
-    const path = 'config/control.json';
-    const url = `${API}/repos/${OWNER}/${REPO}/contents/${path}`;
-    let sha;
-    try {
-      const g = await fetch(url, { headers: ghHeaders() });
-      if (g.ok) sha = (await g.json()).sha;
-    } catch {}
+  const b64enc = (str) => btoa(unescape(encodeURIComponent(str)));
+  const b64dec = (s) => decodeURIComponent(escape(atob(String(s).replace(/\s/g, ''))));
+
+  async function getFile(path) {
+    const url = `${API}/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`;
+    const r = await fetch(url, { headers: ghHeaders(), cache: 'no-store' });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return { sha: d.sha, text: b64dec(d.content || '') };
+  }
+
+  async function putFile(path, text, message) {
+    const cur = await getFile(path);
     const payload = {
-      message: 'chore: 更新好友点赞配置',
-      content: btoa(unescape(encodeURIComponent(JSON.stringify(body, null, 1)))),
+      message,
+      content: b64enc(text),
       branch: BRANCH,
     };
-    if (sha) payload.sha = sha;
-    const r = await fetch(url, {
+    if (cur?.sha) payload.sha = cur.sha;
+    const r = await fetch(`${API}/repos/${OWNER}/${REPO}/contents/${path}`, {
       method: 'PUT',
       headers: { ...ghHeaders(), 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    toast(r.ok ? '已同步到云端' : '同步失败，检查 Token 权限');
+    return r.ok;
   }
+
+  async function pushControl() {
+    const body = {
+      enabled: [...state.enabled],
+      times: state.times,
+      schedule: state.schedule,
+    };
+    return putFile('config/control.json', JSON.stringify(body, null, 1) + '\n', 'chore: 更新点赞配置');
+  }
+
+  async function saveControl() {
+    localStorage.setItem('qz_times', String(state.times));
+    if (!state.token) {
+      toast('已保存到本机（未填 Token，不会同步到云端）');
+      return;
+    }
+    const ok = await pushControl();
+    toast(ok ? '已同步到云端' : '同步失败，检查 Token 权限');
+  }
+
+  /* 改定时：同时改 cron 与配置文件 */
+  async function saveSchedule() {
+    const t = $('schTime').value || '10:00';
+    const n = Math.max(1, Math.min(20, Number($('schTimes').value) || 10));
+    state.schedule = t;
+    state.times = n;
+    localStorage.setItem('qz_schedule', t);
+    localStorage.setItem('qz_times', String(n));
+    state.dirty = true;
+
+    if (!state.token) {
+      toast('已存到本机；填 Token 后才能改云端时间');
+      renderHome();
+      renderSettings();
+      return;
+    }
+
+    const btn = $('saveSch');
+    btn.disabled = true;
+    btn.textContent = '同步中…';
+
+    try {
+      const wf = '.github/workflows/daily-card-like.yml';
+      const cur = await getFile(wf);
+      if (!cur) throw new Error('读不到 workflow');
+      const cron = toCron(t);
+      const next = cur.text.replace(/^(\s*-\s*cron:\s*)["'][^"']*["']/m, `$1"${cron}"`);
+      if (next === cur.text && !cur.text.includes(`"${cron}"`)) throw new Error('cron 替换失败');
+
+      const ok1 = await putFile(wf, next, `chore: 名片赞改为每天 ${t}（北京时间）`);
+      const ok2 = await pushControl();
+      if (!ok1 || !ok2) throw new Error('写入失败');
+
+      toast(`已改为每天 ${t}，下一轮生效`);
+      state.dirty = false;
+    } catch (e) {
+      toast(String(e.message || e));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '保存并同步到云端';
+      renderHome();
+      renderSettings();
+    }
+  }
+
+  function renderSettings() {
+    const st = $('schTime');
+    if (st && document.activeElement !== st) st.value = state.schedule;
+    const nt = $('schTimes');
+    if (nt && document.activeElement !== nt) nt.value = state.times;
+    const badge = $('schState');
+    if (badge) badge.textContent = `每天 ${state.schedule}`;
+  }
+
 
   async function trigger(workflow) {
     if (!state.token) return toast('请先在设置里填写 GitHub Token');
@@ -251,6 +356,33 @@
 
     $('runCard').addEventListener('click', () => trigger('daily-card-like.yml'));
     $('runFeed').addEventListener('click', () => trigger('feed-like.yml'));
+    $('saveSch').addEventListener('click', saveSchedule);
+
+    // 安装到桌面
+    const bar = $('installBar');
+    if (!localStorage.getItem('qz_install_hide') && !isStandalone()) bar.classList.add('show');
+    $('installX').addEventListener('click', () => {
+      bar.classList.remove('show');
+      localStorage.setItem('qz_install_hide', '1');
+    });
+    $('installBtn').addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        bar.classList.remove('show');
+        return;
+      }
+      const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      toast(ios ? 'Safari 底部「分享」→ 添加到主屏幕' : '浏览器菜单 → 添加到主屏幕');
+    });
+  }
+
+  function isStandalone() {
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true
+    );
   }
 
   async function init() {
