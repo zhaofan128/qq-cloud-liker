@@ -29,17 +29,23 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
-def load_control_file(path: Path) -> list[str]:
-    """读取 App 控制面板写入的开关配置。"""
+def load_control(path: Path) -> dict:
+    """读取 App 控制面板写入的配置（好友开关、次数、时间）。"""
     import json
 
     if not path.exists():
-        return []
+        return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        return [str(x) for x in (data.get("enabled") or []) if str(x).isdigit()]
+        return data if isinstance(data, dict) else {}
     except Exception:
-        return []
+        return {}
+
+
+def load_control_file(path: Path) -> list[str]:
+    """读取 App 控制面板写入的开关配置。"""
+    data = load_control(path)
+    return [str(x) for x in (data.get("enabled") or []) if str(x).isdigit()]
 
 
 def load_friends_file(path: Path) -> list[str]:
@@ -63,25 +69,41 @@ class Settings:
     interval: float = DEFAULT_INTERVAL
     dry_run: bool = False
     timeout: int = 20
+    schedule: str = "10:00"
 
     @classmethod
     def from_env(cls, root: str | Path = ".") -> "Settings":
         root = Path(root)
+        ctrl = load_control(root / "config" / "control.json")
         # 优先级：前端控制面板 > 仓库变量 > 文本文件
-        friends = load_control_file(root / "config" / "control.json")
+        friends = [str(x) for x in (ctrl.get("enabled") or []) if str(x).isdigit()]
         if not friends:
             raw_friends = os.environ.get("QQ_FRIENDS", "")
             friends = [x.strip() for x in raw_friends.replace("，", ",").split(",") if x.strip().isdigit()]
         if not friends:
             friends = load_friends_file(root / "config" / "friends.txt")
+
+        # 次数：面板配置优先，其次环境变量
+        panel_times = ctrl.get("times")
+        try:
+            times = int(panel_times) if panel_times else _env_int("QQ_LIKE_TIMES", 10)
+        except (TypeError, ValueError):
+            times = _env_int("QQ_LIKE_TIMES", 10)
+        times = max(1, min(20, times))
+
+        schedule = str(ctrl.get("schedule") or "10:00").strip()
+        if len(schedule) != 5 or ":" not in schedule:
+            schedule = "10:00"
+
         return cls(
             uin=os.environ.get("QQ_UIN", "").strip(),
             cookie=os.environ.get("QQ_COOKIE", "").strip(),
             friends=friends,
-            like_per_friend=_env_int("QQ_LIKE_TIMES", 10),
+            like_per_friend=times,
             interval=_env_float("QQ_LIKE_INTERVAL", DEFAULT_INTERVAL),
             dry_run=os.environ.get("QQ_DRY_RUN", "").lower() in {"1", "true", "yes"},
             timeout=_env_int("QQ_TIMEOUT", 20),
+            schedule=schedule,
         )
 
     def validate(self) -> None:
