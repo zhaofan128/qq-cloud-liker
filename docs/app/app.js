@@ -132,12 +132,16 @@
     const times = state.times || 10;
 
     const today = new Date().toDateString();
-    const doneToday = state.runs.some(
-      (r) => r.name?.includes('名片赞') && new Date(r.created_at).toDateString() === today && r.conclusion === 'success'
+    // 用最近一次「名片赞」任务的真实结果，而不是拿配置估算
+    const lastCard = state.runs.find(
+      (r) => r.name?.includes('名片赞') && r.status === 'completed'
     );
-    $('todayNum').innerHTML = `${doneToday ? enabled * times : 0}<small>次</small>`;
-    $('todaySub').textContent = doneToday
-      ? `今天已完成 · ${enabled} 位好友 × ${times} 个`
+    const cardToday = lastCard && new Date(lastCard.created_at).toDateString() === today;
+    const okFriends = Number(lastCard?.ok || 0);
+    const skippedFriends = Number(lastCard?.skipped || 0);
+    $('todayNum').innerHTML = `${cardToday ? okFriends * times : 0}<small>次</small>`;
+    $('todaySub').textContent = cardToday
+      ? `今天已赞 ${okFriends} 位好友${skippedFriends ? `，${skippedFriends} 位今天已赞过` : ''}`
       : `每天 ${state.schedule} 自动执行 · ${enabled} 位好友 × ${times} 个`;
     $('fCount').innerHTML = `${enabled}<small>位</small>`;
 
@@ -154,7 +158,9 @@
       const stat = r.status !== 'completed' ? '运行中' : ok ? '成功' : '失败';
       return `<div class="run ${ok ? 's' : r.status === 'completed' ? 'f' : ''}">
         <div class="dot"></div>
-        <div><div class="t">${esc(r.name)}</div><div class="d">${fmtTime(r.created_at)}</div></div>
+        <div><div class="t">${esc(r.name)}</div><div class="d">${fmtTime(r.created_at)}${
+          r.ok != null ? ` · ${r.ok} 人` : ''
+        }${r.skipped ? ` · 跳过 ${r.skipped}` : ''}</div></div>
         <div class="st">${stat}</div>
       </div>`;
     }).join('');
