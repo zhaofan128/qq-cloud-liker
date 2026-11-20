@@ -3,6 +3,16 @@
   "name": "每日名片赞",
   "status": "completed",
   "conclusion": "success",
+  "created_at": "2026-11-20T20:55:10+08:00",
+  "ok": 56,
+  "failed": 0,
+  "skipped": 5,
+  "note": ""
+ },
+ {
+  "name": "每日名片赞",
+  "status": "completed",
+  "conclusion": "success",
   "created_at": "2026-11-20T19:30:27+08:00",
   "ok": 61,
   "failed": 0,
