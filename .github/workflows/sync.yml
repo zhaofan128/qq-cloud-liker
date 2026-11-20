@@ -30,6 +30,8 @@ jobs:
         env:
           QQ_UIN: ${{ secrets.QQ_UIN }}
           QQ_COOKIE: ${{ secrets.QQ_COOKIE }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: python main.py sync
 
       - name: 同步到网页数据目录
