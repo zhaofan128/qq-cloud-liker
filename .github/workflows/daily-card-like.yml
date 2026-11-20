@@ -31,7 +31,7 @@ jobs:
 
       - name: 启动协议端
         run: |
-          for REG in docker.1ms.run docker.m.daocloud.io dockerpull.org docker.io; do
+          for REG in mirror.gcr.io docker.1ms.run docker.m.daocloud.io docker.io; do
             echo "== 尝试 $REG"
             if docker pull "$REG/mlikiowa/napcat-docker:latest"; then
               docker tag "$REG/mlikiowa/napcat-docker:latest" mlikiowa/napcat-docker:latest
