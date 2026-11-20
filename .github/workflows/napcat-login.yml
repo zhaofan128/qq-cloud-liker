@@ -16,7 +16,15 @@ jobs:
 
       - name: 启动协议端容器
         run: |
-          docker pull mlikiowa/napcat-docker:latest
+          for REG in docker.1ms.run docker.m.daocloud.io dockerpull.org docker.io; do
+            echo "== 尝试 $REG"
+            if docker pull "$REG/mlikiowa/napcat-docker:latest"; then
+              docker tag "$REG/mlikiowa/napcat-docker:latest" mlikiowa/napcat-docker:latest
+              echo "IMAGE_OK: $REG"
+              break
+            fi
+          done
+          docker image inspect mlikiowa/napcat-docker:latest >/dev/null || exit 1
           rm -rf qqdata
           mkdir -p qqdata/napcat qqdata/QQ
           docker run -d --name napcat --shm-size=1g --cap-add=SYS_ADMIN \
