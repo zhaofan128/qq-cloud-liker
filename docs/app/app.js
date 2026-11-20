@@ -56,6 +56,11 @@
   }
 
   async function loadRuns() {
+    const cached = (state.snap?.runs || []).filter((r) => /名片赞|动态秒赞/.test(r.name || ''));
+    if (cached.length) {
+      state.runs = cached;
+      return cached;
+    }
     try {
       const r = await fetch(`${API}/repos/${OWNER}/${REPO}/actions/runs?per_page=6`, { headers: ghHeaders() });
       if (!r.ok) return [];
