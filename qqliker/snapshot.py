@@ -172,15 +172,29 @@ def build_snapshot(client: QzoneClient, friends: list[dict] | None = None) -> di
 
 def write_snapshot(snap: dict, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    # 保留前端写入的抽屉配置（好友开关等），避免被定时同步覆盖
+
+    # 配置以 config/control.json 为准（App 控制面板写入），其次沿用旧快照
+    cfg = dict(snap.get("config") or {})
     if path.exists():
         try:
             old = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(old.get("config"), dict):
-                snap["config"] = old["config"]
+                cfg = {**old["config"], **cfg}
         except Exception:
             pass
-    if "config" not in snap:
-        snap["config"] = {"times": 10, "enabled": [f["uin"] for f in snap["friends"]]}
+    try:
+        from .config import load_control
+
+        ctrl = load_control(Path("config") / "control.json")
+        if ctrl:
+            cfg.update({k: v for k, v in ctrl.items() if v not in (None, "", [])})
+    except Exception:
+        pass
+
+    cfg.setdefault("times", 10)
+    cfg.setdefault("schedule", "10:00")
+    cfg.setdefault("enabled", [f["uin"] for f in snap["friends"]])
+    snap["config"] = cfg
+
     path.write_text(json.dumps(snap, ensure_ascii=False, indent=1), encoding="utf-8")
     log.info("快照已写入 %s（好友 %d，动态 %d，赞 %d）", path, len(snap["friends"]), len(snap["feeds"]), len(snap["likes"]))
