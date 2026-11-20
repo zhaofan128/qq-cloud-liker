@@ -2,6 +2,10 @@ plugins {
     id 'com.android.application'
 }
 
+// 签名密钥由 CI 从 Secrets 还原，本地没有时自动退回调试签名
+def ksPath = System.getenv("ANDROID_KEYSTORE")
+def ksReady = ksPath != null && file(ksPath).exists()
+
 android {
     namespace 'com.qqliker.app'
     compileSdk 34
@@ -14,12 +18,23 @@ android {
         versionName "1.0"
     }
 
+    signingConfigs {
+        release {
+            if (ksReady) {
+                storeFile file(ksPath)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         debug {
-            // 免登录调试签名，直接可安装
-            applicationIdSuffix ".debug"
+            if (ksReady) signingConfig signingConfigs.release
         }
         release {
+            if (ksReady) signingConfig signingConfigs.release
             minifyEnabled false
         }
     }

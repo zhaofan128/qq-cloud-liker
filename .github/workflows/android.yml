@@ -26,16 +26,10 @@ jobs:
 
       - name: 配置 Android SDK
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          ls "$ANDROID_HOME" || true
           SM=$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
-          echo "sdkmanager=$SM"
           test -n "$SM" || { echo "::error::找不到 sdkmanager"; exit 1; }
-          # 无人值守接受全部许可
           yes | "$SM" --licenses > /tmp/lic.log 2>&1 || true
-          tail -3 /tmp/lic.log || true
           yes | "$SM" "platforms;android-34" "build-tools;34.0.0" "platform-tools" > /tmp/sdk.log 2>&1 || true
-          tail -5 /tmp/sdk.log || true
           ls "$ANDROID_HOME/platforms" || true
 
       - name: 安装 Gradle
@@ -43,14 +37,26 @@ jobs:
         with:
           gradle-version: "8.7"
 
+      - name: 还原签名密钥
+        env:
+          KS_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/qqliker.jks"
+          ls -lh "$RUNNER_TEMP/qqliker.jks"
+
       - name: 编译 APK
         working-directory: android
-        run: gradle assembleDebug --no-daemon --stacktrace
+        env:
+          ANDROID_KEYSTORE: ${{ runner.temp }}/qqliker.jks
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle assembleRelease --no-daemon --stacktrace
 
       - name: 重命名产物
         run: |
           mkdir -p out
-          cp android/app/build/outputs/apk/debug/*.apk out/Qzan.apk
+          cp android/app/build/outputs/apk/release/*.apk out/Qzan.apk
           ls -lh out/
 
       - name: 上传构建产物
@@ -66,5 +72,7 @@ jobs:
           name: Q赞 安卓安装包
           body: |
             下载 `Qzan.apk` 直接安装即可（首次安装需允许「未知来源应用」）。
+
+            安装包使用固定签名，后续版本可直接覆盖升级。
           files: out/Qzan.apk
           make_latest: false
