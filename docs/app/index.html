@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080c14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Q赞">
+<title>Q赞 · 云端点赞</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-180.png">
+<style>
+:root{
+  --bg:#080c14; --panel:#0f1622; --panel2:#141d2b; --line:rgba(120,160,220,.13);
+  --text:#e8eef8; --muted:#8296b0; --qq:#12b7f5; --qq2:#5ad1ff;
+  --ok:#3ddc97; --warn:#ffb454; --bad:#ff6b6b;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0;background:
+    radial-gradient(900px 420px at 12% -8%,rgba(18,183,245,.16),transparent 62%),
+    radial-gradient(700px 380px at 100% 0%,rgba(90,209,255,.09),transparent 58%),
+    var(--bg);
+  color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;overscroll-behavior-y:none;
+}
+.shell{max-width:520px;margin:0 auto;min-height:100%;padding-bottom:calc(74px + var(--safe-b))}
+header{padding:calc(18px + env(safe-area-inset-top,0px)) 18px 6px;display:flex;align-items:center;gap:12px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(140deg,var(--qq),#0a7fb8);
+  display:grid;place-items:center;font-weight:800;font-size:17px;color:#03131c;box-shadow:0 6px 20px rgba(18,183,245,.32)}
+.htxt b{display:block;font-size:16px;letter-spacing:.01em}
+.htxt span{font-size:12px;color:var(--muted)}
+.pill{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;padding:6px 11px;border-radius:999px;
+  background:rgba(61,220,151,.1);border:1px solid rgba(61,220,151,.32);color:var(--ok)}
+.pill.off{background:rgba(255,107,107,.1);border-color:rgba(255,107,107,.32);color:var(--bad)}
+.pill i{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;display:block}
+
+main{padding:10px 16px 24px}
+.view{display:none;animation:fade .22s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.hero{background:linear-gradient(160deg,rgba(18,183,245,.16),rgba(18,183,245,.03) 55%,transparent),var(--panel);
+  border:1px solid rgba(18,183,245,.2);border-radius:18px;padding:18px;margin-bottom:12px;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-40px;top:-50px;width:150px;height:150px;border-radius:50%;
+  background:radial-gradient(circle,rgba(18,183,245,.22),transparent 68%)}
+.hero .who{font-size:12px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase}
+.hero .num{font-size:34px;font-weight:800;letter-spacing:-.02em;margin:4px 0 0;line-height:1.1}
+.hero .num small{font-size:13px;font-weight:500;color:var(--muted);margin-left:6px}
+.hero .sub{font-size:12.5px;color:var(--muted);margin-top:6px}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:15px}
+.card .k{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.card .v{font-size:22px;font-weight:750;margin-top:5px;letter-spacing:-.01em}
+.card .v small{font-size:11.5px;font-weight:500;color:var(--muted);margin-left:4px}
+.card .note{font-size:11.5px;color:var(--muted);margin-top:4px}
+
+.sect{display:flex;align-items:center;gap:8px;margin:20px 2px 10px}
+.sect h2{font-size:13px;font-weight:650;letter-spacing:.02em;margin:0}
+.sect .cnt{font-size:11px;color:var(--muted);background:rgba(120,160,220,.1);padding:2px 8px;border-radius:999px}
+.sect .more{margin-left:auto;font-size:12px;color:var(--qq2)}
+
+.run{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;margin-bottom:8px}
+.run .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:none}
+.run.s .dot{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.run.f .dot{background:var(--bad);box-shadow:0 0 8px var(--bad)}
+.run .t{font-size:13px;font-weight:600}
+.run .d{font-size:11.5px;color:var(--muted)}
+.run .st{margin-left:auto;font-size:11px;color:var(--muted)}
+
+.search{display:flex;gap:8px;margin-bottom:10px}
+.search input{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:11px 13px;
+  color:var(--text);font-size:14px;outline:none}
+.search input:focus{border-color:rgba(18,183,245,.5)}
+.btn{background:rgba(18,183,245,.12);border:1px solid rgba(18,183,245,.34);color:var(--qq2);
+  border-radius:11px;padding:11px 13px;font-size:13px;font-weight:600;cursor:pointer}
+.btn:active{transform:scale(.97)}
+.btn.ghost{background:transparent;border-color:var(--line);color:var(--muted)}
+
+.fitem{display:flex;align-items:center;gap:11px;padding:11px 13px;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;margin-bottom:7px}
+.ava{width:34px;height:34px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:13px;font-weight:700;
+  background:linear-gradient(140deg,#1b2a3d,#0e1724);color:#9fc3e8;border:1px solid rgba(120,160,220,.18)}
+.fitem .meta{min-width:0;flex:1}
+.fitem .n{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fitem .u{font-size:11px;color:var(--muted);font-family:ui-monospace,Menlo,monospace}
+.sw{width:44px;height:26px;border-radius:999px;background:#1b2636;position:relative;flex:none;transition:.2s;cursor:pointer;
+  border:1px solid var(--line)}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#5c6b80;transition:.2s}
+.sw.on{background:rgba(18,183,245,.3);border-color:rgba(18,183,245,.55)}
+.sw.on::after{left:20px;background:var(--qq2)}
+
+.feed{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:13px 14px;margin-bottom:8px}
+.feed .top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+.feed .nm{font-size:13px;font-weight:650}
+.feed .tm{font-size:11px;color:var(--muted);margin-left:auto}
+.feed .ct{font-size:13px;color:#c9d8ea;line-height:1.55}
+
+.empty{text-align:center;padding:38px 20px;color:var(--muted);font-size:13px}
+.empty .ic{font-size:26px;opacity:.35;margin-bottom:8px}
+
+.tabbar{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;gap:6px;
+  padding:8px 12px calc(8px + var(--safe-b));background:rgba(8,12,20,.86);backdrop-filter:blur(18px);
+  border-top:1px solid var(--line);z-index:20}
+.tabbar .tab{flex:1;max-width:120px;display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:7px 4px;border-radius:11px;color:var(--muted);font-size:10.5px;cursor:pointer;background:none;border:none;font-family:inherit}
+.tabbar .tab.on{color:var(--qq2);background:rgba(18,183,245,.09)}
+.tabbar svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+.toast{position:fixed;left:50%;bottom:96px;transform:translate(-50%,12px);background:#16202f;border:1px solid var(--line);
+  color:var(--text);font-size:12.5px;padding:10px 16px;border-radius:11px;opacity:0;pointer-events:none;transition:.25s;z-index:50}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.hint{font-size:11.5px;color:var(--muted);line-height:1.6;margin:10px 2px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="logo">赞</div>
+    <div class="htxt"><b>Q赞</b><span id="acct">加载中…</span></div>
+    <div class="pill" id="status"><i></i>检测中</div>
+  </header>
+
+  <main>
+    <section class="view active" id="v-home">
+      <div class="hero">
+        <div class="who">今日名片赞</div>
+        <div class="num" id="todayNum">—<small>次</small></div>
+        <div class="sub" id="todaySub">每天 10:00 自动执行 · 每位好友 10 个</div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <div class="k">好友</div>
+          <div class="v" id="fCount">—<small>位</small></div>
+          <div class="note">已全部启用</div>
+        </div>
+        <div class="card">
+          <div class="k">动态秒赞</div>
+          <div class="v">5<small>分钟</small></div>
+          <div class="note">下一轮自动扫描</div>
+        </div>
+      </div>
+
+      <div class="sect"><h2>最近执行</h2><span class="cnt" id="runCnt">—</span></div>
+      <div id="runs"><div class="empty"><div class="ic">·</div>加载中</div></div>
+
+      <div class="sect"><h2>账号状态</h2></div>
+      <div class="card">
+        <div class="k">QQ 登录</div>
+        <div class="v" id="loginV" style="font-size:16px">检测中</div>
+        <div class="note" id="loginNote">Cookie 有效期通常数天到数周，过期需重新扫码</div>
+      </div>
+      <p class="hint">数据来自仓库中的 <code>data/snapshot.json</code>，每 30 分钟刷新一次。执行记录直接读取 GitHub Actions。</p>
+    </section>
+
+    <section class="view" id="v-friends">
+      <div class="search">
+        <input id="q" placeholder="搜索昵称或 QQ 号" inputmode="search">
+        <button class="btn ghost" id="allBtn">全选</button>
+      </div>
+      <div class="sect"><h2>好友</h2><span class="cnt" id="fCount2">—</span></div>
+      <div id="flist"></div>
+      <p class="hint">开关只影响「名片赞」任务。修改需要 GitHub Token（在设置里填写），否则只在本地显示。</p>
+    </section>
+
+    <section class="view" id="v-feeds">
+      <div class="sect"><h2>好友动态</h2><span class="cnt" id="feedCnt">—</span></div>
+      <div id="feeds"></div>
+      <div class="sect"><h2>谁赞了我</h2><span class="cnt" id="likeCnt">—</span></div>
+      <div id="likes"></div>
+    </section>
+
+    <section class="view" id="v-set">
+      <div class="sect"><h2>GitHub Token</h2></div>
+      <div class="card">
+        <p class="hint" style="margin-top:0">填入后可在这里改好友开关、手动触发任务。Token 只存在本机浏览器，不会上传到任何地方。</p>
+        <div class="search" style="margin:10px 0 0">
+          <input id="tok" type="password" placeholder="ghp_… 或 github_pat_…">
+          <button class="btn" id="saveTok">保存</button>
+        </div>
+      </div>
+      <div class="sect"><h2>手动执行</h2></div>
+      <div class="grid2">
+        <button class="btn" id="runCard">立即点赞</button>
+        <button class="btn" id="runFeed">扫描动态</button>
+      </div>
+      <div class="sect"><h2>仓库</h2></div>
+      <div class="card">
+        <div class="k">Repository</div>
+        <div class="v" style="font-size:14px;word-break:break-all">zhaofan128/qq-cloud-liker</div>
+        <div class="note" style="margin-top:8px"><a href="https://github.com/zhaofan128/qq-cloud-liker/actions" target="_blank" style="color:var(--qq2)">打开 Actions 页面</a></div>
+      </div>
+      <p class="hint">创建 Token：GitHub → Settings → Developer settings → Personal access tokens (classic) → Generate new token → 勾选 <b>repo</b> 和 <b>workflow</b> → 生成后复制。</p>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button class="tab on" data-v="home">
+      <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>概览
+    </button>
+    <button class="tab" data-v="friends">
+      <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 5.5a3 3 0 0 1 0 6"/><path d="M18 20c0-2.6-1-4.4-2.6-5.3"/></svg>好友
+    </button>
+    <button class="tab" data-v="feeds">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/></svg>动态
+    </button>
+    <button class="tab" data-v="set">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7 1.1V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 7 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.6 1.6 0 0 0 3 15a1.6 1.6 0 0 0-1.5-1H1a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 3 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.6 1.6 0 0 0 9 3a1.6 1.6 0 0 0 1-1.5V1a2 2 0 1 1 4 0v.1A1.6 1.6 0 0 0 15 3a1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.6 1.6 0 0 0 21 9h.1a2 2 0 1 1 0 4H21a1.6 1.6 0 0 0-1.5 1z"/></svg>设置
+    </button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+<script src="./app.js"></script>
+</body>
+</html>

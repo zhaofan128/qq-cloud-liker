@@ -1,0 +1,50 @@
+name: 数据同步（每 30 分钟）
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: qq-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: 采集好友 / 动态 / 点赞
+        env:
+          QQ_UIN: ${{ secrets.QQ_UIN }}
+          QQ_COOKIE: ${{ secrets.QQ_COOKIE }}
+        run: python main.py sync
+
+      - name: 同步到网页数据目录
+        run: |
+          mkdir -p docs/data
+          cp data/snapshot.json docs/data/snapshot.json
+
+      - name: 提交
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/snapshot.json docs/data/snapshot.json
+          if git diff --cached --quiet; then
+            echo "无变化"
+          else
+            git commit -m "chore: 同步快照 $(TZ=Asia/Shanghai date '+%m-%d %H:%M')"
+            git push
+          fi

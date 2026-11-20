@@ -19,6 +19,7 @@ from pathlib import Path
 
 from qqliker.client import QzoneClient, QzoneError
 from qqliker.config import Settings
+from qqliker.snapshot import build_snapshot, write_snapshot
 from qqliker.tasks import TaskReport, run_card_like, run_feed_like
 
 ROOT = Path(__file__).resolve().parent
@@ -72,7 +73,7 @@ def build_client(settings: Settings, dry_run: bool) -> QzoneClient:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="QQ 云端点赞机器人")
-    parser.add_argument("task", choices=["check", "card-like", "feed-like", "all"])
+    parser.add_argument("task", choices=["check", "card-like", "feed-like", "all", "sync"])
     parser.add_argument("--times", type=int, default=None, help="每位好友点赞次数，默认 10")
     parser.add_argument("--interval", type=float, default=None, help="请求间隔秒数，默认 1.5")
     parser.add_argument("--friends", type=str, default="", help="临时覆盖好友列表，逗号分隔")
@@ -118,6 +119,15 @@ def main(argv: list[str] | None = None) -> int:
                     max_friends=args.max_friends,
                 )
             )
+
+        if args.task == "sync":
+            snap = build_snapshot(client)
+            out = Path(os.environ.get("QQ_SNAPSHOT", "data/snapshot.json"))
+            write_snapshot(snap, out)
+            print(f"快照完成: 好友 {len(snap['friends'])} / 动态 {len(snap['feeds'])} / 赞 {len(snap['likes'])}")
+            if snap["errors"]:
+                print("警告:", "; ".join(snap["errors"]))
+            return 0
 
         if args.task in {"feed-like", "all"}:
             reports.append(

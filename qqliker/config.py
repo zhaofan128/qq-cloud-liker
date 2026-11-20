@@ -29,6 +29,19 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+def load_control_file(path: Path) -> list[str]:
+    """读取 App 控制面板写入的开关配置。"""
+    import json
+
+    if not path.exists():
+        return []
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return [str(x) for x in (data.get("enabled") or []) if str(x).isdigit()]
+    except Exception:
+        return []
+
+
 def load_friends_file(path: Path) -> list[str]:
     """从文本文件读好友 QQ 号，每行一个，# 开头为注释。"""
     if not path.exists():
@@ -54,8 +67,11 @@ class Settings:
     @classmethod
     def from_env(cls, root: str | Path = ".") -> "Settings":
         root = Path(root)
-        raw_friends = os.environ.get("QQ_FRIENDS", "")
-        friends = [x.strip() for x in raw_friends.replace("，", ",").split(",") if x.strip().isdigit()]
+        # 优先级：前端控制面板 > 仓库变量 > 文本文件
+        friends = load_control_file(root / "config" / "control.json")
+        if not friends:
+            raw_friends = os.environ.get("QQ_FRIENDS", "")
+            friends = [x.strip() for x in raw_friends.replace("，", ",").split(",") if x.strip().isdigit()]
         if not friends:
             friends = load_friends_file(root / "config" / "friends.txt")
         return cls(
