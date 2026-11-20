@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   card-like:
@@ -53,6 +53,33 @@ jobs:
           else
             # 不传 --times 时读取 config/control.json（App 里改的次数）
             python main.py card-like --max-friends 0
+          fi
+
+      - name: 更新快照（好友 / 动态 / 执行记录）
+        if: always()
+        continue-on-error: true
+        env:
+          QQ_UIN: ${{ secrets.QQ_UIN }}
+          QQ_COOKIE: ${{ secrets.QQ_COOKIE }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python main.py sync || true
+          mkdir -p docs/data
+          cp data/snapshot.json docs/data/snapshot.json
+
+      - name: 提交快照
+        if: always()
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/snapshot.json docs/data/snapshot.json config/control.json || true
+          if git diff --cached --quiet; then
+            echo "无变化"
+          else
+            git commit -m "chore: 名片赞后同步快照 $(TZ=Asia/Shanghai date '+%m-%d %H:%M')"
+            git push
           fi
 
       - name: 失败时提示

@@ -111,12 +111,19 @@
     const last = state.runs.find((x) => x.name && x.name.includes('名片赞'));
     const ok = last && last.conclusion === 'success';
     const st = $('status');
+    if (!last) {
+      st.className = 'pill off';
+      st.innerHTML = '<i></i>待检测';
+      $('loginV').textContent = '暂无执行记录';
+      $('loginNote').textContent = state.token
+        ? '去设置里手动跑一次，或等下一次定时任务'
+        : '在设置里填 Token 后可读取实时状态';
+      return;
+    }
     st.className = 'pill' + (ok ? '' : ' off');
-    st.innerHTML = `<i></i>${ok ? 'Cookie 有效' : (last ? '需检查' : '待执行')}`;
+    st.innerHTML = `<i></i>${ok ? 'Cookie 有效' : '需检查'}`;
     $('loginV').textContent = ok ? '在线，Cookie 有效' : '需要重新获取 Cookie';
-    $('loginNote').textContent = last
-      ? `最近一次验证：${fmtTime(last.updated_at)}`
-      : '还没有执行记录，去设置里手动跑一次';
+    $('loginNote').textContent = `最近一次验证：${fmtTime(last.updated_at || last.created_at)}`;
   }
 
   function renderHome() {
@@ -137,7 +144,9 @@
     $('runCnt').textContent = state.runs.length ? `${state.runs.length} 条` : '—';
     const box = $('runs');
     if (!state.runs.length) {
-      box.innerHTML = '<div class="empty"><div class="ic">·</div>暂无执行记录</div>';
+      box.innerHTML = `<div class="empty"><div class="ic">·</div>暂无执行记录<br><span style="font-size:11.5px">${
+        state.token ? '等下一次任务，或去设置里手动执行' : '在设置里填 Token 可读取实时记录'
+      }</span></div>`;
       return;
     }
     box.innerHTML = state.runs.slice(0, 6).map((r) => {
