@@ -1,89 +1,135 @@
-name: 每日名片赞（每人 10 个）
+name: daily-card-like
 
-# ⚠️ GitHub Actions 的 cron 用的是 UTC 时间。
-#    北京时间 10:00  =  UTC 02:00
-#    北京时间 10:00 对应 UTC+8，中国没有夏令时，全年固定。
+# 每天 10:00（北京时间）给全部好友点满名片赞，点完就退出
+# GitHub 的 cron 用 UTC：北京 10:00 = UTC 02:00
 on:
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
-    inputs:
-      times:
-        description: "每位好友点赞次数"
-        required: false
-        default: "10"
-      dry_run:
-        description: "仅演练不真的点赞（1=开启）"
-        required: false
-        default: "0"
-
-# 同一时间只跑一份，避免重叠执行
-concurrency:
-  group: qq-card-like
-  cancel-in-progress: false
 
 permissions:
   contents: write
-  actions: read
+
+concurrency:
+  group: daily-card-like
+  cancel-in-progress: false
 
 jobs:
-  card-like:
+  run:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: 恢复登录态
+        uses: actions/cache/restore@v4
         with:
-          python-version: "3.11"
-          cache: pip
+          path: qqdata
+          key: qq-login-${{ github.run_id }}
+          restore-keys: |
+            qq-login-
 
-      - name: 安装依赖
-        run: pip install -r requirements.txt
-
-      - name: 执行名片赞任务
-        env:
-          QQ_UIN: ${{ secrets.QQ_UIN }}
-          QQ_COOKIE: ${{ secrets.QQ_COOKIE }}
-          QQ_FRIENDS: ${{ vars.QQ_FRIENDS }}
-          QQ_DRY_RUN: ${{ github.event.inputs.dry_run || '0' }}
+      - name: 启动协议端
         run: |
-          echo "开始时间: $(TZ=Asia/Shanghai date '+%F %T %Z')"
-          if [ -n "${{ github.event.inputs.times }}" ]; then
-            python main.py card-like --times "${{ github.event.inputs.times }}" --max-friends 0
+          docker pull mlikiowa/napcat-docker:latest
+          mkdir -p qqdata/napcat qqdata/QQ
+          sudo chown -R $(id -u):$(id -g) qqdata || true
+          docker run -d --name napcat --shm-size=1g --cap-add=SYS_ADMIN \
+            -e NAPCAT_UID=$(id -u) -e NAPCAT_GID=$(id -g) \
+            -e TZ=Asia/Shanghai \
+            -v "$PWD/qqdata/napcat:/app/napcat" \
+            -v "$PWD/qqdata/QQ:/app/.config/QQ" \
+            -p 3000:3000 \
+            mlikiowa/napcat-docker:latest
+          sleep 30
+          docker logs napcat 2>&1 | tail -15
+
+      - name: 等快速登录
+        id: login
+        run: |
+          OK=0
+          for i in $(seq 1 18); do
+            RESP=$(curl -s -m 4 -X POST http://127.0.0.1:3000/get_login_info \
+                   -H 'Content-Type: application/json' -d '{}' || true)
+            if echo "$RESP" | grep -q '"user_id"'; then
+              echo "已登录：$RESP"
+              OK=1
+              break
+            fi
+            if [ "$i" = "1" ] || [ "$i" = "6" ]; then
+              docker cp napcat:/app/napcat/cache/qrcode.png ./qrcode.png 2>/dev/null || true
+            fi
+            sleep 20
+          done
+          if [ "$OK" = "1" ]; then
+            echo "ok=1" >> $GITHUB_OUTPUT
           else
-            # 不传 --times 时读取 config/control.json（App 里改的次数）
-            python main.py card-like --max-friends 0
+            echo "ok=0" >> $GITHUB_OUTPUT
+            echo "::warning::这次没能免扫码登录，需要重跑 napcat-login 拿新二维码"
           fi
 
-      - name: 更新快照（好友 / 动态 / 执行记录）
-        if: always()
-        continue-on-error: true
+      - name: 点赞
+        id: like
+        if: steps.login.outputs.ok == '1'
         env:
-          QQ_UIN: ${{ secrets.QQ_UIN }}
-          QQ_COOKIE: ${{ secrets.QQ_COOKIE }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          ONEBOT_API: http://127.0.0.1:3000
+          LIKE_TIMES: "10"
+          LIKE_GAP: "1.2"
+          RUNS_PATH: ${{ github.workspace }}/runs.json
+          LOG_PATH: ${{ github.workspace }}/like.log
         run: |
-          python main.py sync || true
-          mkdir -p docs/data
-          cp data/snapshot.json docs/data/snapshot.json
+          python3 deploy/dailylike.py --once
+          echo "---- 末尾日志 ----"
+          tail -12 like.log || true
 
-      - name: 提交快照
+      - name: 写日志并提交
         if: always()
-        continue-on-error: true
+        env:
+          RESULT: ${{ steps.like.outcome }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/snapshot.json docs/data/snapshot.json data/runs.json data/runs.json config/control.json || true
-          if git diff --cached --quiet; then
-            echo "无变化"
-          else
-            git commit -m "chore: 名片赞后同步快照 $(TZ=Asia/Shanghai date '+%m-%d %H:%M')"
-            git push
+          git config user.name "qqliker-bot"
+          git config user.email "qqliker-bot@users.noreply.github.com"
+          DATE=$(TZ=Asia/Shanghai date +%F)
+          mkdir -p logs data
+
+          if [ -f runs.json ]; then
+            cp runs.json data/runs.json
           fi
 
-      - name: 失败时提示
-        if: failure()
-        run: |
-          echo "::error::名片赞任务失败，通常是 Cookie 过期。请重新抓取 Cookie 并更新 Secret QQ_COOKIE。"
+          if [ -f like.log ]; then
+            cp like.log "logs/${DATE}.log"
+          fi
+
+          OK=$(python3 -c "
+          import json,sys
+          try:
+              d=json.load(open('runs.json'))
+              print(d[-1]['ok'] if d else 0)
+          except Exception:
+              print(0)
+          ")
+
+          {
+            echo "# ${DATE} 名片赞"
+            echo ""
+            echo "- 运行结果：${RESULT}"
+            echo "- 成功好友：${OK}"
+            echo "- 详细：logs/${DATE}.log"
+          } > "logs/${DATE}.md"
+
+          rm -f ./qrcode.png
+          git add -A logs data
+          git commit -q -m "chore: ${DATE} 名片赞执行记录（${OK} 位好友）" || echo "没有变化"
+          git pull --rebase -q || true
+          git push -q || echo "push 失败"
+
+      - name: 保存登录态
+        if: steps.login.outputs.ok == '1'
+        uses: actions/cache/save@v4
+        with:
+          path: qqdata
+          key: qq-login-${{ github.run_id }}
+
+      - name: 收尾
+        if: always()
+        run: docker logs napcat 2>&1 | tail -25 || true

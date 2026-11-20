@@ -1,0 +1,91 @@
+name: napcat-login
+
+# 手动跑一次：把 QQ 登录态存进 Actions 缓存，之后每天就能免扫码
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  login:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 启动协议端容器
+        run: |
+          docker pull mlikiowa/napcat-docker:latest
+          rm -rf qqdata
+          mkdir -p qqdata/napcat qqdata/QQ
+          docker run -d --name napcat --shm-size=1g --cap-add=SYS_ADMIN \
+            -e NAPCAT_UID=$(id -u) -e NAPCAT_GID=$(id -g) \
+            -e TZ=Asia/Shanghai \
+            -v "$PWD/qqdata/napcat:/app/napcat" \
+            -v "$PWD/qqdata/QQ:/app/.config/QQ" \
+            -p 3000:3000 \
+            mlikiowa/napcat-docker:latest
+          sleep 25
+          docker logs napcat 2>&1 | tail -20
+
+      - name: 刷新二维码，等扫码
+        run: |
+          git config user.name "qqliker-bot"
+          git config user.email "qqliker-bot@users.noreply.github.com"
+          LAST=""
+          OK=0
+          for i in $(seq 1 56); do
+            RESP=$(curl -s -m 4 -X POST http://127.0.0.1:3000/get_login_info \
+                   -H 'Content-Type: application/json' -d '{}' || true)
+            if echo "$RESP" | grep -q '"user_id"'; then
+              echo "LOGIN_OK: $RESP"
+              OK=1
+              break
+            fi
+
+            docker cp napcat:/app/napcat/cache/qrcode.png /tmp/qr.png >/dev/null 2>&1 || true
+            if [ -f /tmp/qr.png ]; then
+              SUM=$(md5sum /tmp/qr.png | cut -d' ' -f1)
+              if [ "$SUM" != "$LAST" ]; then
+                LAST="$SUM"
+                cp /tmp/qr.png ./qrcode.png
+                git add qrcode.png
+                git commit -q -m "chore: 登录二维码 $(date -u '+%H:%M:%S') UTC" || true
+                git pull --rebase -q || true
+                git push -q || true
+                echo "二维码已更新 $SUM"
+              fi
+            fi
+            sleep 20
+          done
+
+          if [ "$OK" != "1" ]; then
+            echo "::error::20 分钟内没有完成扫码登录"
+            exit 1
+          fi
+
+      - name: 保存登录态
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: qqdata
+          key: qq-login-${{ github.run_id }}
+
+      - name: 顺手点一轮
+        if: success()
+        env:
+          ONEBOT_API: http://127.0.0.1:3000
+          LIKE_TIMES: "10"
+          LIKE_GAP: "1.0"
+          RUNS_PATH: ${{ github.workspace }}/runs.json
+          LOG_PATH: ${{ github.workspace }}/like.log
+        run: |
+          python3 deploy/dailylike.py --once || true
+          tail -5 like.log || true
+
+      - name: 收尾
+        if: always()
+        run: |
+          docker logs napcat 2>&1 | tail -30
+          rm -f ./qrcode.png

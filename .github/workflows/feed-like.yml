@@ -3,8 +3,7 @@ name: 空间动态秒赞（每 5 分钟）
 # GitHub Actions 的最小调度间隔就是 5 分钟，且高峰期会有 3~15 分钟延迟。
 # 想要"发出来 1 分钟内就赞"，请改用 worker/ 目录里的 Cloudflare Worker 版本（每分钟）。
 on:
-  schedule:
-    - cron: "*/5 * * * *"
+  # 空间动态赞由你自己在手机上点，这里默认不再定时跑，需要时手动触发
   workflow_dispatch:
 
 concurrency:

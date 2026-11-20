@@ -23,7 +23,7 @@ GH_TOKEN = os.environ.get("GITHUB_TOKEN", "").strip()
 GH_REPO = os.environ.get("GITHUB_REPO", "").strip()
 TZ = timezone(timedelta(hours=8))
 
-LOG_PATH = "/app/like.log"
+LOG_PATH = os.environ.get("LOG_PATH", "/app/like.log")
 
 
 def log(msg: str) -> None:
@@ -141,7 +141,7 @@ def run_once() -> dict:
 
 
 def save_record(rec: dict) -> None:
-    path = "/app/runs.json"
+    path = os.environ.get("RUNS_PATH", "/app/runs.json")
     runs = []
     try:
         with open(path, encoding="utf-8") as f:
