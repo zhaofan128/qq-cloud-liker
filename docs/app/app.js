@@ -122,7 +122,7 @@
     }
     st.className = 'pill' + (ok ? '' : ' off');
     st.innerHTML = `<i></i>${ok ? 'Cookie 有效' : '需检查'}`;
-    $('loginV').textContent = ok ? '在线，Cookie 有效' : '需要重新获取 Cookie';
+    $('loginV').textContent = ok ? '离线运行 · Cookie 有效' : '需要重新获取 Cookie';
     $('loginNote').textContent = `最近一次验证：${fmtTime(last.updated_at || last.created_at)}`;
   }
 
