@@ -60,7 +60,7 @@
       const r = await fetch(`${API}/repos/${OWNER}/${REPO}/actions/runs?per_page=6`, { headers: ghHeaders() });
       if (!r.ok) return [];
       const d = await r.json();
-      state.runs = d.workflow_runs || [];
+      state.runs = (d.workflow_runs || []).filter((r) => /名片赞|动态秒赞/.test(r.name || ''));
     } catch {
       state.runs = [];
     }
