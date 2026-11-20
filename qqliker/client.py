@@ -112,8 +112,10 @@ class QzoneClient:
     ENDPOINTS = {
         # 自己的资料，用于校验 Cookie 是否有效
         "profile": "https://h5.qzone.qq.com/proxy/domain/base.qzone.qq.com/cgi-bin/user/cgi_userinfo_get_all",
-        # 名片赞（截图里"赞了你 10 次"那个）
-        "like_card": "https://h5.qzone.qq.com/proxy/domain/r.qzone.qq.com/cgi-bin/tfriend/friend_ship_manager.cgi",
+        # 名片赞（截图里"赞了你 10 次"那个）：appid=7030 就是名片应用
+        "like_card": "https://user.qzone.qq.com/proxy/domain/w.qzone.qq.com/cgi-bin/likes/internal_dolike_app",
+        # 好友的空间主页，用来看"今天还能不能赞"（g_likeable_today）
+        "profile_page": "https://user.qzone.qq.com/{fuin}",
         # 好友动态列表
         "list_feeds": "https://h5.qzone.qq.com/proxy/domain/taotao.qq.com/cgi-bin/emotion_cgi_msglist_v6",
         # 给单条动态点赞
@@ -169,19 +171,36 @@ class QzoneClient:
         params: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
         method: str = "GET",
+        url: str | None = None,
+        headers: dict[str, str] | None = None,
     ) -> Any:
         if self.dry_run:
             if name == "list_feeds":
                 return _DryResponse(None, text=_dry_feed_jsonp())
+            if name == "profile_page":
+                return _DryResponse(
+                    None, text='g_likeable_today=+"1", "like_number":+""'
+                )
             return _DryResponse(self._dry_payload(name))
-        url = self.ENDPOINTS[name]
+        target = url or self.ENDPOINTS[name]
         try:
             if method == "POST":
                 resp = self.s.post(
-                    url, params=params, data=data, timeout=self.timeout, cookies=self.cookies
+                    target,
+                    params=params,
+                    data=data,
+                    headers=headers,
+                    timeout=self.timeout,
+                    cookies=self.cookies,
                 )
             else:
-                resp = self.s.get(url, params=params, timeout=self.timeout, cookies=self.cookies)
+                resp = self.s.get(
+                    target,
+                    params=params,
+                    headers=headers,
+                    timeout=self.timeout,
+                    cookies=self.cookies,
+                )
         except requests.RequestException as exc:
             raise QzoneError(f"{name} 请求失败: {exc}") from exc
         if resp.status_code >= 400:
@@ -211,31 +230,74 @@ class QzoneClient:
             )
         return nickname or self.uin
 
-    def like_card(self, fuin: str, times: int = 10, interval: float = 1.5) -> int:
-        """给某个好友的名片点赞，最多 ``times`` 次，返回实际成功次数。"""
+    CARD_APPID = 7030  # 名片应用 appid，动态是 311
+
+    def card_likeable_today(self, fuin: str) -> int | None:
+        """查某个好友的名片今天还能不能赞。
+
+        返回 1 = 今天还没赞过（可以赞），0 = 今天已经赞过，None = 没查到。
+        判断依据是好友空间主页内联的 ``g_likeable_today`` 变量。
+        """
         fuin = str(fuin).strip()
+        try:
+            resp = self._call(
+                "profile_page",
+                url=self.ENDPOINTS["profile_page"].format(fuin=fuin),
+                headers={"Referer": f"https://user.qzone.qq.com/{self.uin}"},
+            )
+        except QzoneError:
+            return None
+        m = re.search(r"g_likeable_today\s*=\s*\+?\s*[\"']?(\d)", resp.text or "")
+        if not m:
+            return None
+        return int(m.group(1))
+
+    def like_card(self, fuin: str, times: int = 10, interval: float = 1.5) -> int:
+        """给某个好友的名片点赞，最多 ``times`` 次，返回实际成功次数。
+
+        走的是空间主页那个"赞"按钮背后的真实接口：
+        ``likes/internal_dolike_app``，appid=7030，unikey/curkey 都是
+        ``http://user.qzone.qq.com/{好友QQ}``。成功返回 ``message: "succ"``；
+        旧的 ``friend_ship_manager.cgi`` 早已废弃，虽然也回 code=0，
+        但其实什么也不做（这就是之前"显示成功却没点上"的原因）。
+        """
+        fuin = str(fuin).strip()
+        key = f"http://user.qzone.qq.com/{fuin}"
+        data = {
+            "appid": self.CARD_APPID,
+            "face": 0,
+            "fupdate": 1,
+            "from": 1,
+            "query_count": 200,
+            "opuin": self.uin,
+            "unikey": key,
+            "curkey": key,
+            "dontadd": 0,
+            "op": 1,
+            "format": "json",
+            "qzreferrer": f"https://user.qzone.qq.com/{fuin}",
+        }
+        headers = {"Referer": f"https://user.qzone.qq.com/{fuin}"}
         done = 0
         for i in range(max(0, times)):
-            params = {
-                "uin": self.uin,
-                "fuin": fuin,
-                "op": 1,
-                "g_tk": self.gtk,
-                "qua": QUA,
-                "format": "json",
-            }
             try:
-                resp = self._call("like_card", params=params)
+                resp = self._call(
+                    "like_card",
+                    params={"g_tk": self.gtk},
+                    data=data,
+                    method="POST",
+                    headers=headers,
+                )
                 payload = loads_js(resp.text)
             except QzoneError as exc:
                 log.warning("好友 %s 第 %d 次点赞异常: %s", fuin, i + 1, exc)
                 break
             if not isinstance(payload, dict):
                 break
-            if payload.get("code") == 0:
+            if payload.get("message") == "succ" or payload.get("ret") == 0:
                 done += 1
             else:
-                # 已达到当日上限 / 非好友 / 需要验证，均直接跳过
+                # 今日上限 / 非好友 / 需要验证，均直接跳过
                 log.info(
                     "好友 %s 第 %d 次点赞停止: code=%s %s",
                     fuin,

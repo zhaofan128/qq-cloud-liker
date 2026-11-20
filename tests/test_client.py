@@ -107,19 +107,22 @@ def test_list_feeds_parsing():
 def test_like_card_success_then_limit():
     """前 3 次成功，第 4 次返回错误码后立即停止。"""
     seq = [
-        FakeResp('{"code":0,"subcode":0}'),
-        FakeResp('{"code":0,"subcode":0}'),
-        FakeResp('{"code":0,"subcode":0}'),
+        FakeResp('{"code":0,"subcode":0,"message":"succ"}'),
+        FakeResp('{"code":0,"subcode":0,"message":"succ"}'),
+        FakeResp('{"code":0,"subcode":0,"message":"succ"}'),
         FakeResp('{"code":-10000,"message":"已达上限"}'),
     ]
     calls = {"i": 0}
 
     class SeqSession(FakeSession):
-        def get(self, url, **kw):
+        def post(self, url, **kw):
             resp = seq[min(calls["i"], len(seq) - 1)]
             calls["i"] += 1
             self.calls.append((url, kw))
             return resp
+
+        def get(self, url, **kw):  # pragma: no cover - 不应被调用
+            raise AssertionError("like_card 应该只发 POST")
 
     client = make_client(SeqSession({}))
     n = client.like_card("12345", times=10, interval=0)
@@ -128,22 +131,55 @@ def test_like_card_success_then_limit():
 
 
 def test_like_card_sends_expected_params():
-    session = FakeSession({"friend_ship_manager": FakeResp('{"code":0,"subcode":0}')})
+    session = FakeSession({"internal_dolike_app": FakeResp('{"code":0,"message":"succ"}')})
     client = make_client(session)
     client.like_card("12345", times=1, interval=0)
-    _, kwargs = session.calls[0]
-    assert kwargs["params"]["fuin"] == "12345"
-    assert kwargs["params"]["op"] == 1
+    url, kwargs = session.calls[0]
+    assert "internal_dolike_app" in url
     assert kwargs["params"]["g_tk"] == client.gtk
+    assert kwargs["data"]["appid"] == 7030
+    assert kwargs["data"]["unikey"] == "http://user.qzone.qq.com/12345"
+    assert kwargs["data"]["curkey"] == "http://user.qzone.qq.com/12345"
+    assert kwargs["data"]["op"] == 1
+    assert kwargs["data"]["opuin"] == "10000"
+
+
+def test_card_likeable_today_reads_page_flag():
+    page = '<script>g_likeable_today=+"0", g_moreModules=[]</script>'
+    client = make_client(FakeSession({"https://user.qzone.qq.com/12345": FakeResp(page)}))
+    assert client.card_likeable_today("12345") == 0
+    client2 = make_client(FakeSession({"https://user.qzone.qq.com/12345": FakeResp('g_likeable_today=+"1"')}))
+    assert client2.card_likeable_today("12345") == 1
 
 
 def test_run_card_like_aggregates():
-    session = FakeSession({"friend_ship_manager": FakeResp('{"code":0,"subcode":0}')})
+    """两位好友：都还没赞过，各点 2 次；赞完状态变 0 记作已验证。"""
+    liked: set[str] = set()
+
+    class StateSession(FakeSession):
+        def _pick(self, url: str) -> FakeResp:
+            if "internal_dolike_app" in url:
+                return FakeResp('{"code":0,"subcode":0,"message":"succ"}')
+            # 主页：根据是否赞过返回 g_likeable_today
+            fuin = url.rstrip("/").rsplit("/", 1)[-1]
+            return FakeResp('g_likeable_today=+"%d"' % (0 if fuin in liked else 1))
+
+        def post(self, url, **kw):
+            self.calls.append((url, kw))
+            fuin = kw["data"]["unikey"].rstrip("/").rsplit("/", 1)[-1]
+            liked.add(fuin)
+            return self._pick(url)
+
+    session = StateSession({})
     client = make_client(session)
     report = run_card_like(client, ["1", "2"], times=2, interval=0)
     assert report.ok == 2
     assert report.failed == 0
-    assert len(session.calls) == 4
+    assert report.skipped == 0
+    assert "已验证" in " ".join(report.details)
+    # 2 次点赞 × 2 人 + 每人 2 次主页查询
+    assert len([c for c in session.calls if "internal_dolike_app" in c[0]]) == 4
+    assert len([c for c in session.calls if "internal_dolike_app" not in c[0]]) == 4
 
 
 def test_run_feed_like_only_recent_and_unliked():

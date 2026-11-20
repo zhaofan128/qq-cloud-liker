@@ -39,7 +39,12 @@ def run_card_like(
     interval: float = 1.5,
     max_friends: int = 0,
 ) -> TaskReport:
-    """给每位好友的名片点 ``times`` 个赞（QQ 每人每天上限 10 个）。"""
+    """给每位好友的名片点 ``times`` 个赞（QQ 每人每天上限 10 个）。
+
+    每位好友点赞前后各查一次空间主页的 ``g_likeable_today``：
+    赞之前已经是 0 说明今天赞过了，直接跳过；赞之后再查一次确认真点上去了，
+    避免接口"假成功"。
+    """
     report = TaskReport(name="名片赞")
     targets = friends[:max_friends] if max_friends else friends
     if not targets:
@@ -48,17 +53,30 @@ def run_card_like(
     for i, fuin in enumerate(targets, 1):
         log.info("[%d/%d] 给好友 %s 点赞 …", i, len(targets), fuin)
         try:
+            before = client.card_likeable_today(fuin)
+        except Exception:
+            before = None
+        if before == 0:
+            report.skipped += 1
+            report.add(f"{fuin}: 今天已经赞过，跳过")
+            continue
+        try:
             n = client.like_card(fuin, times=times, interval=interval)
         except Exception as exc:  # 单点失败不中断整体
             report.failed += 1
             report.add(f"{fuin}: 异常 {exc}")
             continue
-        if n > 0:
-            report.ok += 1
-            report.add(f"{fuin}: +{n}")
-        else:
+        if n <= 0:
             report.skipped += 1
             report.add(f"{fuin}: 0（已达上限/非好友/Cookie 问题）")
+            continue
+        report.ok += 1
+        try:
+            after = client.card_likeable_today(fuin)
+        except Exception:
+            after = None
+        tag = "已验证" if after == 0 else ("未确认" if after is None else "可疑")
+        report.add(f"{fuin}: +{n} {tag}")
         if i < len(targets):
             time.sleep(interval)
     return report
