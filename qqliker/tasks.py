@@ -39,13 +39,13 @@ def run_card_like(
     interval: float = 1.5,
     max_friends: int = 0,
 ) -> TaskReport:
-    """给每位好友的名片点 ``times`` 个赞（QQ 每人每天上限 10 个）。
+    """给每位好友的空间主页点 ``times`` 个赞（备注：这是空间赞，不是手机QQ 的名片赞）。
 
     每位好友点赞前后各查一次空间主页的 ``g_likeable_today``：
     赞之前已经是 0 说明今天赞过了，直接跳过；赞之后再查一次确认真点上去了，
     避免接口"假成功"。
     """
-    report = TaskReport(name="名片赞")
+    report = TaskReport(name="空间赞")
     targets = friends[:max_friends] if max_friends else friends
     if not targets:
         report.add("未配置好友列表（QQ_FRIENDS 或 config/friends.txt）")

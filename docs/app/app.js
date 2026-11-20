@@ -89,7 +89,7 @@
   }
 
   async function loadRuns() {
-    const cached = (state.snap?.runs || []).filter((r) => /名片赞|动态秒赞/.test(r.name || ''));
+    const cached = (state.snap?.runs || []).filter((r) => /名片赞|空间赞|动态秒赞/.test(r.name || ''));
     if (cached.length) {
       state.runs = cached;
       return cached;
@@ -98,7 +98,7 @@
       const r = await fetch(`${API}/repos/${OWNER}/${REPO}/actions/runs?per_page=6`, { headers: ghHeaders() });
       if (!r.ok) return [];
       const d = await r.json();
-      state.runs = (d.workflow_runs || []).filter((r) => /名片赞|动态秒赞/.test(r.name || ''));
+      state.runs = (d.workflow_runs || []).filter((r) => /名片赞|空间赞|动态秒赞/.test(r.name || ''));
     } catch {
       state.runs = [];
     }

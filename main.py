@@ -146,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
     except QzoneError as exc:
         log_error(str(exc))
         try:
-            record_run("名片赞" if args.task in {"card-like", "all"} else "动态秒赞", failed=1, conclusion="failure", note=str(exc)[:120])
+            record_run("空间赞" if args.task in {"card-like", "all"} else "动态秒赞", failed=1, conclusion="failure", note=str(exc)[:120])
         except Exception:
             pass
         return 2
